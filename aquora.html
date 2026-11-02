@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AQUORA — Premium Water Procurement</title>
+<link rel="manifest" id="manifest">
+<meta name="theme-color" content="#0b2545">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+:root{
+  --bg:#f7f9fb; --surface:#ffffff; --ink:#0b2545; --ink-soft:#4a5a73;
+  --line:#e3e8ef; --navy:#0b2545; --navy-2:#13375e; --silver:#c7cdd6;
+  --green:#2f6f5e; --accent:#0b2545;
+}
+:root:not([data-theme="light"]) { color-scheme: light dark; }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1420; --surface:#121b29; --ink:#eef2f7; --ink-soft:#a9b4c4;
+    --line:#223044; --navy:#9fc2e8; --navy-2:#cfe0f3; --silver:#2a3650; --green:#7fd9bd;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1420; --surface:#121b29; --ink:#eef2f7; --ink-soft:#a9b4c4;
+  --line:#223044; --navy:#9fc2e8; --navy-2:#cfe0f3; --silver:#2a3650; --green:#7fd9bd;
+}
+html,body{height:100%;}
+body{background:var(--bg);color:var(--ink);font-family:ui-serif,Georgia,serif;}
+.sans{font-family:ui-sans-serif,system-ui,sans-serif;}
+h1,h2,h3,.serif{font-family:ui-serif,Georgia,serif;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;}
+.btn{border-radius:999px;padding:.6rem 1.3rem;font-size:.85rem;letter-spacing:.03em;font-family:ui-sans-serif,system-ui,sans-serif;}
+.btn-primary{background:var(--navy);color:var(--bg);}
+.btn-ghost{border:1px solid var(--line);color:var(--ink);}
+.tag{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--green);}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;color:var(--ink);width:100%;font-family:ui-sans-serif,system-ui,sans-serif;}
+.navlink{cursor:pointer;color:var(--ink-soft);font-size:.85rem;font-family:ui-sans-serif,system-ui,sans-serif;}
+.navlink.active{color:var(--ink);font-weight:600;}
+::-webkit-scrollbar{height:6px;width:6px}
+.demo-badge{font-size:.6rem;background:var(--silver);color:var(--navy-2);padding:1px 6px;border-radius:5px;letter-spacing:.05em;}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--surface);}
+header{padding-top:env(safe-area-inset-top,0px);}
+</style>
+</head>
+<body>
+<div id="app" class="sans"></div>
+
+<script>
+/* ---------- DATA LAYER (localStorage) ---------- */
+const DB_KEY='aquora_db_v1';
+function seed(){
+  return {
+    products:[
+      {id:'p1',name:'Still Reserve 330',cat:'Still',size:'330ml',price:38,moq:500,lead:'10 days',custom:true,img:'💧',desc:'Clean alpine-sourced still water in a matte aluminium can.'},
+      {id:'p2',name:'Sparkling Horizon 330',cat:'Sparkling',size:'330ml',price:46,moq:500,lead:'12 days',custom:true,img:'✨',desc:'Fine natural carbonation, crisp finish, elegant can.'},
+      {id:'p3',name:'Mineral Terra 500',cat:'Mineral',size:'500ml',price:52,moq:300,lead:'14 days',custom:true,img:'⛰️',desc:'Naturally mineral-rich spring water for premium dining.'},
+      {id:'p4',name:'Alkaline Pure 330',cat:'Alkaline',size:'330ml',price:44,moq:500,lead:'12 days',custom:true,img:'🌿',desc:'pH-balanced alkaline water, wellness-positioned SKU.'},
+      {id:'p5',name:'Flavoured Citrus 250',cat:'Flavoured',size:'250ml',price:41,moq:1000,lead:'15 days',custom:false,img:'🍋',desc:'Subtle citrus infusion, limited seasonal availability.'},
+      {id:'p6',name:'Still Reserve 500',cat:'Still',size:'500ml',price:45,moq:400,lead:'10 days',custom:true,img:'💧',desc:'Larger format of our signature still water.'},
+    ],
+    customers:{'owner@tajresorts.com':{pass:'demo123',name:'Rahul Mehta',biz:'Taj Coastal Resorts',type:'Resort',phone:'+91 98xxxxxxx',addr:'Goa, India',gst:''}},
+    admin:{'admin@aquora.com':'admin123'},
+    designs:[], orders:[], quotes:[],
+  };
+}
+function load(){ let d=localStorage.getItem(DB_KEY); if(!d){ const s=seed(); localStorage.setItem(DB_KEY,JSON.stringify(s)); return s;} return JSON.parse(d); }
+function save(db){ localStorage.setItem(DB_KEY,JSON.stringify(db)); }
+let db = load();
+
+/* ---------- STATE ---------- */
+let state = { route:'landing', user:null, isAdmin:false, cart:[], branding:{color:'#0b2545',template:'Classic Band',hotel:'',tagline:'',logo:null} };
+
+function go(r){ state.route=r; render(); window.scrollTo(0,0); }
+function uid(){ return 'id'+Math.random().toString(36).slice(2,9); }
+
+/* ---------- RENDER ---------- */
+function render(){
+  const app=document.getElementById('app');
+  app.innerHTML = Header() + Body() + Footer();
+  attachEvents();
+}
+
+function Header(){
+  const nav = ['landing','catalogue','branding','dashboard'];
+  const labels={landing:'Home',catalogue:'Catalogue',branding:'Branding Studio',dashboard:'Dashboard'};
+  return `
+  <header class="sticky top-0 z-30 backdrop-blur card" style="border-radius:0;border-left:none;border-right:none;border-top:none;">
+    <div class="max-w-6xl mx-auto flex items-center justify-between px-5 py-4">
+      <div class="serif text-xl tracking-wide cursor-pointer" data-go="landing">AQUORA</div>
+      <nav class="hidden md:flex gap-6">
+        ${nav.map(n=>`<span class="navlink ${state.route===n?'active':''}" data-go="${n}">${labels[n]}</span>`).join('')}
+        <span class="navlink ${state.route==='admin'?'active':''}" data-go="admin">Admin</span>
+      </nav>
+      <div class="flex items-center gap-3">
+        <span class="demo-badge">DEMO DATA</span>
+        ${state.user?`<span class="navlink" data-go="dashboard">Hi, ${state.user.name.split(' ')[0]}</span><span class="navlink" data-action="logout">Logout</span>`
+          :`<span class="navlink" data-go="auth">Login / Register</span>`}
+        <span class="navlink relative" data-go="cart">Cart${state.cart.length?`<span class="ml-1 text-xs" style="color:var(--green)">(${state.cart.length})</span>`:''}</span>
+      </div>
+    </div>
+  </header>`;
+}
+function Footer(){ return `<footer class="max-w-6xl mx-auto px-5 py-10 text-xs navlink">AQUORA — Premium packaged water, sustainably canned for luxury hospitality. Demo build for academic submission.</footer>`; }
+
+function Body(){
+  switch(state.route){
+    case 'landing': return Landing();
+    case 'auth': return Auth();
+    case 'catalogue': return Catalogue();
+    case 'branding': return Branding();
+    case 'cart': return Cart();
+    case 'dashboard': return Dashboard();
+    case 'admin': return Admin();
+    default: return Landing();
+  }
+}
+
+function Landing(){
+  return `
+  <section class="max-w-6xl mx-auto px-5 pt-16 pb-20 text-center">
+    <div class="tag mb-4">Luxury Hospitality · Sustainable Packaging</div>
+    <h1 class="serif text-4xl md:text-6xl leading-tight mb-6">Water, bottled in your<br>hotel's own brand.</h1>
+    <p class="max-w-xl mx-auto text-sm" style="color:var(--ink-soft)">AQUORA supplies premium packaged drinking water in fully customised aluminium cans — curated for resorts, hotels and fine dining. Infinitely recyclable. Zero plastic.</p>
+    <div class="flex gap-3 justify-center mt-8">
+      <button class="btn btn-primary" data-go="catalogue">Browse Catalogue</button>
+      <button class="btn btn-ghost" data-go="auth">Request a Quotation</button>
+    </div>
+  </section>
+  <section class="max-w-6xl mx-auto px-5 grid md:grid-cols-3 gap-5 pb-20">
+    ${[['🪙 Custom Branding','Your logo, colours and tagline on every can — approved before production.'],
+       ['♻️ Sustainable','100% recyclable aluminium, replacing single-use plastic bottles.'],
+       ['📦 Curated Catalogue','Still, sparkling, mineral, alkaline and flavoured water lines.']]
+       .map(([t,d])=>`<div class="card p-6"><div class="text-lg serif mb-2">${t}</div><p class="text-sm" style="color:var(--ink-soft)">${d}</p></div>`).join('')}
+  </section>
+  <section class="max-w-6xl mx-auto px-5 pb-24">
+    <h2 class="serif text-2xl mb-6 text-center">How it works</h2>
+    <div class="grid md:grid-cols-4 gap-4 text-sm">
+      ${['Register your property','Design your can in the Branding Studio','Request a quotation & approve design','Track production to delivery']
+        .map((s,i)=>`<div class="card p-5"><div class="tag mb-2">Step ${i+1}</div>${s}</div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function Auth(){
+  return `
+  <section class="max-w-md mx-auto px-5 py-16">
+    <h2 class="serif text-2xl mb-1">Customer Access</h2>
+    <p class="text-xs mb-6" style="color:var(--ink-soft)">Demo login: owner@tajresorts.com / demo123</p>
+    <div class="card p-6 mb-6">
+      <h3 class="serif text-lg mb-3">Login</h3>
+      <div class="space-y-2">
+        <input id="login-email" placeholder="Business email">
+        <input id="login-pass" type="password" placeholder="Password">
+      </div>
+      <button class="btn btn-primary w-full mt-4" data-action="login">Login</button>
+    </div>
+    <div class="card p-6">
+      <h3 class="serif text-lg mb-3">Register your property</h3>
+      <div class="space-y-2">
+        <input id="r-biz" placeholder="Hotel / Restaurant name">
+        <input id="r-name" placeholder="Contact person">
+        <input id="r-email" placeholder="Business email">
+        <input id="r-phone" placeholder="Phone number">
+        <select id="r-type"><option>Hotel</option><option>Resort</option><option>Restaurant</option></select>
+        <input id="r-addr" placeholder="Delivery address">
+        <input id="r-gst" placeholder="GST details (optional)">
+        <input id="r-pass" type="password" placeholder="Set password">
+      </div>
+      <button class="btn btn-primary w-full mt-4" data-action="register">Register</button>
+    </div>
+  </section>`;
+}
+
+function Catalogue(){
+  const cats=['All',...new Set(db.products.map(p=>p.cat))];
+  return `
+  <section class="max-w-6xl mx-auto px-5 py-12">
+    <h2 class="serif text-3xl mb-2">Product Catalogue</h2>
+    <p class="text-sm mb-6" style="color:var(--ink-soft)">Sample products — demo data for evaluation.</p>
+    <div class="flex gap-2 mb-6 flex-wrap">
+      ${cats.map(c=>`<button class="btn btn-ghost text-xs py-1 px-3" data-filter="${c}">${c}</button>`).join('')}
+    </div>
+    <div id="prod-grid" class="grid sm:grid-cols-2 md:grid-cols-3 gap-5"></div>
+  </section>`;
+}
+function renderProducts(filter='All'){
+  const grid=document.getElementById('prod-grid'); if(!grid) return;
+  const list = filter==='All'? db.products : db.products.filter(p=>p.cat===filter);
+  grid.innerHTML = list.map(p=>`
+    <div class="card p-5 flex flex-col">
+      <div class="text-4xl mb-3">${p.img}</div>
+      <div class="tag">${p.cat}</div>
+      <div class="serif text-lg mb-1">${p.name}</div>
+      <p class="text-xs mb-3" style="color:var(--ink-soft)">${p.desc}</p>
+      <div class="text-xs space-y-1 mb-3" style="color:var(--ink-soft)">
+        <div>Size: ${p.size} · MOQ: ${p.moq} units</div>
+        <div>Lead time: ${p.lead}</div>
+        <div>Customisation: ${p.custom?'Available':'Not available'}</div>
+      </div>
+      <div class="serif text-xl mb-3">₹${p.price}<span class="text-xs"> /unit (quote-based)</span></div>
+      <button class="btn btn-primary mt-auto text-xs" data-add="${p.id}">Add to Cart</button>
+    </div>`).join('');
+}
+
+function Branding(){
+  const b=state.branding;
+  return `
+  <section class="max-w-5xl mx-auto px-5 py-12 grid md:grid-cols-2 gap-10">
+    <div>
+      <h2 class="serif text-3xl mb-1">Custom Branding Studio</h2>
+      <p class="text-sm mb-6" style="color:var(--ink-soft)">Design your can — preview updates live.</p>
+      <div class="space-y-3">
+        <div><label class="text-xs" style="color:var(--ink-soft)">Hotel / Restaurant name</label><input id="b-hotel" value="${b.hotel}"></div>
+        <div><label class="text-xs" style="color:var(--ink-soft)">Tagline</label><input id="b-tagline" value="${b.tagline}"></div>
+        <div><label class="text-xs" style="color:var(--ink-soft)">Can colour</label>
+          <div class="flex gap-2 mt-1">
+            ${['#0b2545','#13375e','#2f6f5e','#8a8f98','#c7cdd6'].map(c=>`<div class="w-7 h-7 rounded-full cursor-pointer" style="background:${c};border:2px solid ${b.color===c?'var(--ink)':'transparent'}" data-color="${c}"></div>`).join('')}
+          </div>
+        </div>
+        <div><label class="text-xs" style="color:var(--ink-soft)">Design template</label>
+          <select id="b-template">${['Classic Band','Minimal Mono','Botanical','Coastal'].map(t=>`<option ${b.template===t?'selected':''}>${t}</option>`).join('')}</select>
+        </div>
+        <div><label class="text-xs" style="color:var(--ink-soft)">Upload logo (optional, text placeholder in demo)</label><input id="b-logo" placeholder="e.g. TAJ.svg"></div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button class="btn btn-ghost" data-action="save-design">Save Design</button>
+        <button class="btn btn-primary" data-action="submit-design">Submit for Approval</button>
+      </div>
+      <div id="saved-designs" class="mt-8"></div>
+    </div>
+    <div class="flex items-center justify-center">
+      <div id="can-preview" class="flex flex-col items-center justify-center rounded-3xl p-8" style="width:220px;height:380px;background:${b.color};color:#fff;box-shadow:0 20px 50px -20px rgba(0,0,0,.4)">
+        <div class="text-xs tracking-widest opacity-70 mb-2">${b.template.toUpperCase()}</div>
+        <div class="serif text-xl text-center mb-2">${b.hotel||'Your Hotel Name'}</div>
+        <div class="text-xs text-center opacity-80">${b.tagline||'Your tagline here'}</div>
+        <div class="mt-auto text-xs tracking-widest opacity-60">AQUORA</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function Cart(){
+  const items = state.cart;
+  const total = items.reduce((s,i)=>s+i.price*i.qty,0);
+  return `
+  <section class="max-w-3xl mx-auto px-5 py-12">
+    <h2 class="serif text-3xl mb-6">Cart & Quotation Request</h2>
+    ${items.length===0?`<p class="text-sm" style="color:var(--ink-soft)">Your cart is empty. Add products from the catalogue.</p>`:
+    `<div class="space-y-3 mb-6">
+      ${items.map((i,idx)=>`
+      <div class="card p-4 flex items-center justify-between gap-4">
+        <div><div class="serif">${i.name}</div><div class="text-xs" style="color:var(--ink-soft)">${i.size} · MOQ ${i.moq} · Branding: ${i.branded?'Custom ('+i.brandedHotel+')':'None'}</div></div>
+        <div class="flex items-center gap-3">
+          <input type="number" min="${i.moq}" step="10" value="${i.qty}" class="w-24 text-xs" data-qty="${idx}">
+          <div class="text-sm w-20 text-right">₹${(i.price*i.qty).toLocaleString()}</div>
+          <span class="navlink text-xs" data-remove="${idx}">✕</span>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="card p-5 mb-6 space-y-2 text-sm">
+      <div class="flex justify-between"><span>Subtotal</span><span>₹${total.toLocaleString()}</span></div>
+      <div class="flex justify-between" style="color:var(--ink-soft)"><span>Custom branding setup charge</span><span>₹${items.some(i=>i.branded)?'15,000':'0'}</span></div>
+      <div class="flex justify-between" style="color:var(--ink-soft)"><span>Estimated delivery charges</span><span>₹8,500</span></div>
+      <div class="flex justify-between serif text-lg border-t pt-2" style="border-color:var(--line)"><span>Estimated Total</span><span>₹${(total + (items.some(i=>i.branded)?15000:0) + 8500).toLocaleString()}</span></div>
+    </div>
+    <div class="card p-5 mb-6">
+      <h3 class="serif mb-3">Delivery Details</h3>
+      <div class="space-y-2">
+        <input id="d-addr" placeholder="Delivery address" value="${state.user?state.user.addr:''}">
+        <textarea id="d-notes" placeholder="Notes for the order"></textarea>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button class="btn btn-ghost" data-action="request-quote">Request Quotation</button>
+      <button class="btn btn-primary" data-action="confirm-order">Confirm Order</button>
+    </div>`}
+  </section>`;
+}
+
+function Dashboard(){
+  if(!state.user) return Auth();
+  const myOrders = db.orders.filter(o=>o.email===state.user.email);
+  const myQuotes = db.quotes.filter(q=>q.email===state.user.email);
+  const myDesigns = db.designs.filter(d=>d.email===state.user.email);
+  const statuses = ['Quotation requested','Quotation approved','Design approval pending','Production','Quality check','Dispatched','Delivered'];
+  return `
+  <section class="max-w-6xl mx-auto px-5 py-12">
+    <h2 class="serif text-3xl mb-1">${state.user.biz} — Dashboard</h2>
+    <p class="text-sm mb-8" style="color:var(--ink-soft)">${state.user.name} · ${state.user.type}</p>
+    <div class="grid sm:grid-cols-4 gap-4 mb-10 text-sm">
+      ${[['Total Orders',myOrders.length],['Pending Orders',myOrders.filter(o=>o.status!=='Delivered').length],
+         ['Completed Orders',myOrders.filter(o=>o.status==='Delivered').length],['Pending Quotations',myQuotes.filter(q=>q.status==='Pending').length]]
+        .map(([l,v])=>`<div class="card p-4"><div class="text-2xl serif">${v}</div><div class="text-xs" style="color:var(--ink-soft)">${l}</div></div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Order Tracking</h3>
+    <div class="space-y-3 mb-10">
+      ${myOrders.length===0?`<p class="text-sm" style="color:var(--ink-soft)">No orders yet.</p>`:
+        myOrders.map(o=>`
+        <div class="card p-4">
+          <div class="flex justify-between items-center mb-2 text-sm"><span class="serif">Order #${o.id}</span><span>₹${o.total.toLocaleString()}</span></div>
+          <div class="flex gap-1 flex-wrap text-xs">
+            ${statuses.map(s=>`<span class="px-2 py-1 rounded-full" style="background:${statuses.indexOf(s)<=statuses.indexOf(o.status)?'var(--navy)':'var(--line)'};color:${statuses.indexOf(s)<=statuses.indexOf(o.status)?'var(--bg)':'var(--ink-soft)'}">${s}</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Quotations</h3>
+    <div class="space-y-2 mb-10 text-sm">
+      ${myQuotes.length===0?`<p style="color:var(--ink-soft)">No quotations requested.</p>`:
+        myQuotes.map(q=>`<div class="card p-3 flex justify-between"><span>Quote #${q.id} — ₹${q.total.toLocaleString()}</span><span class="tag">${q.status}</span></div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Saved Designs</h3>
+    <div class="grid sm:grid-cols-3 gap-4">
+      ${myDesigns.length===0?`<p class="text-sm" style="color:var(--ink-soft)">No saved designs.</p>`:
+        myDesigns.map(d=>`<div class="card p-4 text-center"><div class="rounded-xl mx-auto mb-2" style="width:60px;height:100px;background:${d.color}"></div><div class="text-xs">${d.hotel||'Untitled'}</div><button class="btn btn-ghost text-xs mt-2" data-reorder="${d.id}">Reorder</button></div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function Admin(){
+  if(!state.isAdmin) return AdminLogin();
+  return `
+  <section class="max-w-6xl mx-auto px-5 py-12">
+    <h2 class="serif text-3xl mb-8">Admin Dashboard</h2>
+    <div class="grid sm:grid-cols-4 gap-4 mb-10 text-sm">
+      ${[['Products',db.products.length],['Customers',Object.keys(db.customers).length],['Orders',db.orders.length],['Pending Quotes',db.quotes.filter(q=>q.status==='Pending').length]]
+        .map(([l,v])=>`<div class="card p-4"><div class="text-2xl serif">${v}</div><div class="text-xs" style="color:var(--ink-soft)">${l}</div></div>`).join('')}
+    </div>
+
+    <div class="flex justify-between items-center mb-3"><h3 class="serif text-xl">Catalogue Management</h3>
+      <button class="btn btn-primary text-xs" data-action="add-product">+ Add Product</button></div>
+    <div class="space-y-2 mb-10 text-sm">
+      ${db.products.map(p=>`
+      <div class="card p-3 flex items-center justify-between gap-3">
+        <div>${p.img} <b class="serif">${p.name}</b> <span class="text-xs" style="color:var(--ink-soft)">${p.cat} · ${p.size}</span></div>
+        <div class="flex items-center gap-2">
+          <input class="w-20 text-xs" data-price="${p.id}" value="${p.price}">
+          <input class="w-24 text-xs" data-moq="${p.id}" value="${p.moq}">
+          <span class="navlink text-xs" data-delprod="${p.id}">Delete</span>
+        </div>
+      </div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Quotation Requests</h3>
+    <div class="space-y-2 mb-10 text-sm">
+      ${db.quotes.length===0?`<p style="color:var(--ink-soft)">None yet.</p>`:
+        db.quotes.map(q=>`<div class="card p-3 flex justify-between items-center"><span>#${q.id} — ${q.email} — ₹${q.total.toLocaleString()}</span>
+        <div class="flex gap-2"><button class="btn btn-ghost text-xs" data-approve-quote="${q.id}">Approve</button></div></div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Orders — Update Status</h3>
+    <div class="space-y-2 mb-10 text-sm">
+      ${db.orders.length===0?`<p style="color:var(--ink-soft)">None yet.</p>`:
+        db.orders.map(o=>`<div class="card p-3 flex justify-between items-center">
+        <span>#${o.id} — ${o.email}</span>
+        <select class="w-56 text-xs" data-orderstatus="${o.id}">
+          ${['Quotation requested','Quotation approved','Design approval pending','Production','Quality check','Dispatched','Delivered'].map(s=>`<option ${o.status===s?'selected':''}>${s}</option>`).join('')}
+        </select></div>`).join('')}
+    </div>
+
+    <h3 class="serif text-xl mb-3">Customers</h3>
+    <div class="text-sm space-y-2">
+      ${Object.entries(db.customers).map(([em,c])=>`<div class="card p-3">${c.biz} — ${c.name} — ${em}</div>`).join('')}
+    </div>
+  </section>`;
+}
+function AdminLogin(){
+  return `<section class="max-w-sm mx-auto px-5 py-16">
+    <h2 class="serif text-2xl mb-1">Admin Login</h2>
+    <p class="text-xs mb-4" style="color:var(--ink-soft)">Demo: admin@aquora.com / admin123</p>
+    <div class="card p-6 space-y-2">
+      <input id="admin-email" placeholder="Admin email">
+      <input id="admin-pass" type="password" placeholder="Password">
+      <button class="btn btn-primary w-full mt-2" data-action="admin-login">Login</button>
+    </div></section>`;
+}
+
+/* ---------- EVENTS ---------- */
+function attachEvents(){
+  document.querySelectorAll('[data-go]').forEach(el=>el.onclick=()=>go(el.dataset.go));
+  document.querySelectorAll('[data-filter]').forEach(el=>el.onclick=()=>renderProducts(el.dataset.filter));
+  if(state.route==='catalogue') renderProducts();
+
+  const byId=id=>document.getElementById(id);
+
+  if(byId('login-email')) document.querySelector('[data-action="login"]').onclick=()=>{
+    const em=byId('login-email').value.trim(), pw=byId('login-pass').value;
+    const c=db.customers[em];
+    if(c && c.pass===pw){ state.user={email:em,...c}; go('dashboard'); } else alert('Invalid credentials. Try the demo login shown above.');
+  };
+  if(byId('r-biz')) document.querySelector('[data-action="register"]').onclick=()=>{
+    const em=byId('r-email').value.trim();
+    if(!em||!byId('r-biz').value){ alert('Please fill business name and email.'); return; }
+    db.customers[em]={pass:byId('r-pass').value||'demo123',name:byId('r-name').value,biz:byId('r-biz').value,type:byId('r-type').value,phone:byId('r-phone').value,addr:byId('r-addr').value,gst:byId('r-gst').value};
+    save(db); state.user={email:em,...db.customers[em]}; go('dashboard');
+  };
+
+  document.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>{
+    const p=db.products.find(x=>x.id===el.dataset.add);
+    state.cart.push({...p,qty:p.moq,branded:false});
+    alert(p.name+' added to cart.');
+  });
+
+  if(state.route==='branding'){
+    document.querySelectorAll('[data-color]').forEach(el=>el.onclick=()=>{ state.branding.color=el.dataset.color; render(); });
+    const h=byId('b-hotel'), t=byId('b-tagline'), tp=byId('b-template'), lg=byId('b-logo');
+    if(h) h.oninput=()=>{ state.branding.hotel=h.value; document.querySelector('#can-preview .serif').textContent=h.value||'Your Hotel Name'; };
+    if(t) t.oninput=()=>{ state.branding.tagline=t.value; document.querySelectorAll('#can-preview div')[2].textContent=t.value||'Your tagline here'; };
+    if(tp) tp.onchange=()=>{ state.branding.template=tp.value; render(); };
+    if(lg) lg.oninput=()=>{ state.branding.logo=lg.value; };
+    const sd=document.querySelector('[data-action="save-design"]');
+    if(sd) sd.onclick=()=>{
+      if(!state.user){ alert('Please login first to save a design.'); go('auth'); return; }
+      db.designs.push({id:uid(),email:state.user.email,...state.branding}); save(db);
+      alert('Design saved to your dashboard.');
+    };
+    const subd=document.querySelector('[data-action="submit-design"]');
+    if(subd) subd.onclick=()=>{
+      if(!state.user){ alert('Please login first.'); go('auth'); return; }
+      const d={id:uid(),email:state.user.email,...state.branding,status:'Pending Approval'};
+      db.designs.push(d); save(db);
+      state.cart.push({id:'custom-'+d.id,name:'Custom Branded Can — '+(d.hotel||'Untitled'),cat:'Custom',size:'330ml',price:40,moq:500,qty:500,branded:true,brandedHotel:d.hotel});
+      alert('Design submitted for approval and added to cart.'); go('cart');
+    };
+  }
+
+  document.querySelectorAll('[data-qty]').forEach(el=>el.onchange=()=>{ state.cart[el.dataset.qty].qty=parseInt(el.value)||1; render(); });
+  document.querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{ state.cart.splice(el.dataset.remove,1); render(); });
+
+  const rq=document.querySelector('[data-action="request-quote"]');
+  if(rq) rq.onclick=()=>{
+    if(!state.user){ alert('Please login to request a quotation.'); go('auth'); return; }
+    const total=state.cart.reduce((s,i)=>s+i.price*i.qty,0)+8500+(state.cart.some(i=>i.branded)?15000:0);
+    db.quotes.push({id:uid().slice(2,7),email:state.user.email,total,status:'Pending'}); save(db);
+    state.cart=[]; alert('Quotation requested — our team will review and respond.'); go('dashboard');
+  };
+  const co=document.querySelector('[data-action="confirm-order"]');
+  if(co) co.onclick=()=>{
+    if(!state.user){ alert('Please login to place an order.'); go('auth'); return; }
+    const total=state.cart.reduce((s,i)=>s+i.price*i.qty,0)+8500+(state.cart.some(i=>i.branded)?15000:0);
+    db.orders.push({id:uid().slice(2,7),email:state.user.email,total,status:'Quotation requested'}); save(db);
+    state.cart=[]; alert('Order confirmed — track progress in your dashboard.'); go('dashboard');
+  };
+
+  if(byId('admin-email')) document.querySelector('[data-action="admin-login"]').onclick=()=>{
+    const em=byId('admin-email').value.trim(), pw=byId('admin-pass').value;
+    if(db.admin[em]===pw){ state.isAdmin=true; render(); } else alert('Invalid admin credentials.');
+  };
+  document.querySelectorAll('[data-price]').forEach(el=>el.onchange=()=>{ db.products.find(p=>p.id===el.dataset.price).price=parseFloat(el.value)||0; save(db); });
+  document.querySelectorAll('[data-moq]').forEach(el=>el.onchange=()=>{ db.products.find(p=>p.id===el.dataset.moq).moq=parseInt(el.value)||1; save(db); });
+  document.querySelectorAll('[data-delprod]').forEach(el=>el.onclick=()=>{ db.products=db.products.filter(p=>p.id!==el.dataset.delprod); save(db); render(); });
+  document.querySelectorAll('[data-approve-quote]').forEach(el=>el.onclick=()=>{ db.quotes.find(q=>q.id===el.dataset.approveQuote).status='Approved'; save(db); render(); });
+  document.querySelectorAll('[data-orderstatus]').forEach(el=>el.onchange=()=>{ db.orders.find(o=>o.id===el.dataset.orderstatus).status=el.value; save(db); });
+  const ap=document.querySelector('[data-action="add-product"]');
+  if(ap) ap.onclick=()=>{
+    const name=prompt('Product name:'); if(!name) return;
+    db.products.push({id:uid(),name,cat:'Still',size:'330ml',price:40,moq:500,lead:'10 days',custom:true,img:'💧',desc:'New product.'});
+    save(db); render();
+  };
+
+  document.querySelectorAll('[data-action="logout"]').forEach(el=>el.onclick=()=>{ state.user=null; state.isAdmin=false; go('landing'); });
+}
+
+/* ---------- MANIFEST (installable PWA) ---------- */
+const manifest = {
+  name:"AQUORA — Water Procurement", short_name:"AQUORA", start_url:".", display:"standalone",
+  background_color:"#0b2545", theme_color:"#0b2545",
+  icons:[{src:"data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b2545"/><text x="50" y="62" font-size="40" fill="white" text-anchor="middle" font-family="serif">A</text></svg>'),sizes:"192x192",type:"image/svg+xml"}]
+};
+document.getElementById('manifest').href = "data:application/manifest+json,"+encodeURIComponent(JSON.stringify(manifest));
+
+render();
+</script>
+</body>
+</html>
