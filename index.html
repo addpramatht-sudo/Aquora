@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AQUORA — Premium Water Procurement</title>
-<link rel="manifest" id="manifest">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#0b2545">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <style>
@@ -96,6 +98,7 @@ function Header(){
         ${state.user?`<span class="navlink" data-go="dashboard">Hi, ${state.user.name.split(' ')[0]}</span><span class="navlink" data-action="logout">Logout</span>`
           :`<span class="navlink" data-go="auth">Login / Register</span>`}
         <span class="navlink relative" data-go="cart">Cart${state.cart.length?`<span class="ml-1 text-xs" style="color:var(--green)">(${state.cart.length})</span>`:''}</span>
+        <button id="install-btn" class="btn btn-primary text-xs hidden">Install App</button>
       </div>
     </div>
   </header>`;
@@ -463,13 +466,25 @@ function attachEvents(){
   document.querySelectorAll('[data-action="logout"]').forEach(el=>el.onclick=()=>{ state.user=null; state.isAdmin=false; go('landing'); });
 }
 
-/* ---------- MANIFEST (installable PWA) ---------- */
-const manifest = {
-  name:"AQUORA — Water Procurement", short_name:"AQUORA", start_url:".", display:"standalone",
-  background_color:"#0b2545", theme_color:"#0b2545",
-  icons:[{src:"data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b2545"/><text x="50" y="62" font-size="40" fill="white" text-anchor="middle" font-family="serif">A</text></svg>'),sizes:"192x192",type:"image/svg+xml"}]
-};
-document.getElementById('manifest').href = "data:application/manifest+json,"+encodeURIComponent(JSON.stringify(manifest));
+/* ---------- PWA install + offline support ---------- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('install-btn');
+  if (btn) btn.classList.remove('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'install-btn' && deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; document.getElementById('install-btn').classList.add('hidden'); });
+  }
+});
 
 render();
 </script>
